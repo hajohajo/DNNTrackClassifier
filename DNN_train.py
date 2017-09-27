@@ -7,9 +7,11 @@ try:
 except ImportError:
 	found = False
 #/////////////////////
-
+import tensorflow as tf
+sess = tf.Session()
 import matplotlib.pyplot as plt
 import keras.backend as K
+K.set_session(sess)
 import pylab as P
 import pandas as pd
 import numpy as np
@@ -47,27 +49,43 @@ loss_ = 'mean_squared_error' #'binary_crossentropy'
 listOfFiles=glob.glob("/work/hajohajo/DNNTrackReconstruction/trackingNtuples_TRAIN/*.root")
 
 #List of features not to be used in the training
-ignores=['trk_algoMask','vtx*','bsb*','simvtx*','simpv*','event','lumi','run','trk_mva','trk_isHP','trk_algo','trk_qualityMask','trk_nValid','trk_q','trk_vtxIdx','__array_index']
+#ignores=['trk_algoMask','vtx*','bsb*','simvtx*','simpv*','event','lumi','run','trk_mva','trk_isHP','trk_algo','trk_qualityMask','trk_nValid','trk_q','trk_vtxIdx','__array_index']
+read=['trk_isTrue','trk_pt','trk_ptErr','trk_nInnerLost','trk_nOuterLost','trk_nPixel','trk_nStrip','trk_eta','trk_nChi2','trk_nChi2_1Dmod','trk_n3DLay','trk_nLostLay','trk_nPixelLay','trk_nStripLay','trk_ndof']
 
-data=read_root(listOfFiles,ignore=ignores,flatten=True)
-targets=data.trk_isTrue
-#data_tr
-train=data.sample(frac=0.95,random_state=200).drop(['trk_isTrue'],1)
-#data_te
-test=data.drop(train.index).drop(['trk_isTrue'],1)
+#data=read_root(listOfFiles,ignore=ignores,flatten=True)
+data=read_root(listOfFiles,columns=read,flatten=True)
+print('read data to dataframe')
 
-#train = data_tr.drop(['trk_isTrue'],1)
-#test = data_te.drop(['trk_isTrue'],1)
+targets=data['trk_isTrue']
+variables=['trk_pt','trk_lostmidfrac','trk_minlost','trk_nhits','trk_relpterr','trk_eta','trk_chi2n_n1dmod','trk_chi2n','trk_nlayerslost','trk_nlayers3D','trk_nlayers','trk_ndof']
 
-#print train.columns.values.tolist()
+newdf=pd.DataFrame(columns=variables)
+dum_=pd.DataFrame(columns=['trk_pt'],data=np.ones(data.shape[0])*0.000001)
+
+newdf['trk_relpterr']=data['trk_ptErr'].divide(pd.DataFrame([data['trk_pt'],dum_['trk_pt']]).max())
+newdf['trk_pt']=data['trk_pt']
+newdf['trk_nhits']=data['trk_nPixel']+data['trk_nStrip']
+newdf['trk_minlost']=pd.DataFrame([data['trk_nInnerLost'],data['trk_nOuterLost']]).min()
+newdf['trk_lostmidfrac']=(data['trk_nInnerLost']+data['trk_nOuterLost']).divide(newdf['trk_nhits']+(data['trk_nInnerLost']+data['trk_nOuterLost']))
+newdf['trk_eta']=data['trk_eta']
+newdf['trk_chi2n_n1dmod']=data['trk_nChi2_1Dmod']
+newdf['trk_chi2n']=data['trk_nChi2']
+newdf['trk_nlayers3D']=data['trk_n3DLay']
+newdf['trk_nlayers']=data['trk_nPixelLay']+data['trk_nStripLay']
+newdf['trk_nlayerslost']=data['trk_nLostLay']
+newdf['trk_ndof']=data['trk_ndof']
+
+train=newdf.sample(frac=0.95,random_state=200)
+test=newdf.drop(train.index)
+
+print train
+#print test
+
+#train=data.sample(frac=0.95,random_state=200).drop(['trk_isTrue'],1)
+#test=data.drop(train.index).drop(['trk_isTrue'],1)
 
 train_targets=targets[train.index]
 test_targets=targets.drop(train.index)
-
-#print train.shape
-#print train_targets.shape
-#print test.shape
-#print test_targets.shape
 
 from keras.models import Model
 from keras.layers import Input,Dense,Convolution1D,Flatten,Dropout,Activation
@@ -88,10 +106,8 @@ a = Dense(150,activation='relu', kernel_initializer='normal')(a)
 a = Dropout(dropoutRate)(a)
 a = Dense(20,activation='relu', kernel_initializer='normal')(a)
 a = Dropout(dropoutRate)(a)
-a = Dense(100,activation='relu', kernel_initializer='normal')(a)
-a = Dropout(dropoutRate)(a)
 a = Dense(10,activation='relu', kernel_initializer='normal')(a)
-a_out = Dense(1, activation='sigmoid', kernel_initializer='normal')(a)
+a_out = Dense(1, activation='softsign', kernel_initializer='normal')(a)
 
 model=Model(a_inp,a_out)
 model.compile(loss=loss_,optimizer='Adam',metrics=['acc'])
@@ -112,3 +128,6 @@ model.fit(x_train,y_train,
 
 model.save('my_model_'+loss_+'_Adam.h5')
 
+builder = tf.saved_model.builder.SavedModelBuilder("./Tensorflow_graph")
+builder.add_meta_graph_and_variables(sess,[tf.saved_model.tag_constants.SERVING])
+builder.save()
