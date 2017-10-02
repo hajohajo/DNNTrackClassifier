@@ -9,7 +9,8 @@ LOGDIR_TRAIN=$MAINDIR/logs_train
 LOGDIR_TEST=$MAINDIR/logs_test
 CMSDIR=$CMSSW_BASE/src
 
-ALGOS=(initialStep lowPtQuadStep highPtTripletStep lowPtTripletStep detachedQuadStep detachedTripletStep pixelPairStep mixedTripletStep pixelLessStep tobTecStep jetCoreRegionalStep)
+#ALGOS=(initialStep lowPtQuadStep highPtTripletStep lowPtTripletStep detachedQuadStep detachedTripletStep pixelPairStep mixedTripletStep pixelLessStep tobTecStep jetCoreRegionalStep)
+ALGOS=(inDQM)
 
 filelist_train=trainFileList.txt
 filelist_test=testFileList.txt
